@@ -5,6 +5,157 @@ const AI_CONFIG = {
     model: "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 };
 
+// 日曆配置
+let calendar;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化日曆
+    const calendarEl = document.getElementById('calendar');
+    calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'zh-tw',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        buttonText: {
+            today: '今天',
+            month: '月',
+            week: '週',
+            day: '日'
+        },
+        dayMaxEvents: true,
+        eventDisplay: 'block',
+        displayEventEnd: false,
+        eventTimeFormat: {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        },
+        eventMaxStack: 3,
+        eventClick: function(info) {
+            showEventDetails(info.event);
+        },
+        events: function(fetchInfo, successCallback, failureCallback) {
+            const history = JSON.parse(localStorage.getItem('massageHistory') || '[]');
+            const events = history.map(record => ({
+                title: `${new Date(record.timestamp).toLocaleTimeString('zh-tw', {hour: '2-digit', minute:'2-digit'})} ${record.mode}按摩`,
+                start: record.timestamp,
+                end: record.timestamp,
+                extendedProps: record,
+                allDay: false,
+                display: 'block'
+            }));
+            successCallback(events);
+        },
+        eventDidMount: function(info) {
+            // 自定義事件元素的樣式
+            info.el.style.maxWidth = '100%';
+            info.el.style.width = '100%';
+            info.el.style.whiteSpace = 'nowrap';
+            info.el.style.overflow = 'hidden';
+            info.el.style.textOverflow = 'ellipsis';
+            info.el.style.borderRadius = '4px';
+            info.el.style.margin = '1px 0';
+            info.el.style.padding = '2px 4px';
+            info.el.style.fontSize = '0.85em';
+            info.el.style.boxSizing = 'border-box';
+            
+            // 移除任何可能導致寬度溢出的樣式
+            info.el.style.left = '0';
+            info.el.style.right = '0';
+            info.el.style.marginLeft = '0';
+            info.el.style.marginRight = '0';
+        },
+        dayCellDidMount: function(info) {
+            // 確保日期格子有相對定位
+            info.el.style.position = 'relative';
+            info.el.style.overflow = 'hidden';
+        }
+    });
+    calendar.render();
+
+    // 添加全局樣式
+    const style = document.createElement('style');
+    style.textContent = `
+        .fc-event {
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            border-radius: 4px !important;
+            border: none !important;
+        }
+        .fc .fc-daygrid-event-harness {
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            width: 100% !important;
+        }
+        .fc-daygrid-block-event .fc-event-main {
+            padding: 2px 4px !important;
+        }
+        .fc-daygrid-day-events {
+            margin: 0 !important;
+            padding: 2px !important;
+        }
+    `;
+    document.head.appendChild(style);
+});
+
+// 顯示事件詳情的函數
+function showEventDetails(event) {
+    const record = event.extendedProps;
+    const modalHtml = `
+        <div id="eventModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold">按摩記錄詳情</h3>
+                    <button onclick="closeEventModal()" class="text-gray-500 hover:text-gray-700">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="font-semibold">${new Date(record.timestamp).toLocaleString()}</div>
+                        <div>掃描結果：</div>
+                        <div class="ml-4">
+                            <div>整體緊繃度：${record.scanData.overallTension}%</div>
+                            <div>脊椎狀態：${record.scanData.spineAlignment}</div>
+                            <div>肌肉僵硬度：${record.scanData.muscleStiffness}%</div>
+                            <div>主要緊繃點位：</div>
+                            ${record.scanData.tensionPoints.map(point => 
+                                `<div class="ml-2">- ${point.position}：${point.tension}%</div>`
+                            ).join('')}
+                        </div>
+                        <div>按摩效果：</div>
+                        <div class="ml-4">
+                            ${record.improvedTensionData.map((data, index) => {
+                                const initial = record.initialTensionData[index];
+                                const improvement = ((initial.value - data.value) / initial.value * 100).toFixed(1);
+                                return `<div class="ml-2">- ${data.area}：改善 ${improvement}%</div>`;
+                            }).join('')}
+                        </div>
+                        <div>模式: ${record.mode}</div>
+                        <div>強度: ${record.force}</div>
+                        <div>速度: ${record.speed}</div>
+                        <div>時長: ${record.duration}秒</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function closeEventModal() {
+    const modal = document.getElementById('eventModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
 // 按摩模擬類
 class MassageSimulation {
     constructor() {
@@ -146,7 +297,7 @@ class MassageSimulation {
 
     saveHistory(improvements = null) {
         const history = JSON.parse(localStorage.getItem('massageHistory') || '[]');
-        history.push({
+        const newRecord = {
             timestamp: new Date().toISOString(),
             mode: this.mode,
             force: this.force,
@@ -157,9 +308,14 @@ class MassageSimulation {
             initialTensionData: this.initialTensionData,
             improvedPressureData: improvements?.pressureImprovement || [],
             improvedTensionData: improvements?.tensionImprovement || []
-        });
+        };
+        history.push(newRecord);
         localStorage.setItem('massageHistory', JSON.stringify(history));
-        this.updateHistoryUI();
+        
+        // 更新日曆
+        if (calendar) {
+            calendar.refetchEvents();
+        }
     }
 
     generatePressureData() {
@@ -198,39 +354,6 @@ class MassageSimulation {
             area: tensionAreas[i],
             value: Math.random() * 100
         }));
-    }
-
-    updateHistoryUI() {
-        const historyContainer = document.getElementById('history');
-        const history = JSON.parse(localStorage.getItem('massageHistory') || '[]');
-        
-        historyContainer.innerHTML = history.reverse().slice(0, 5).map(record => `
-            <div class="bg-gray-50 p-4 rounded-lg">
-                <div class="font-semibold">${new Date(record.timestamp).toLocaleString()}</div>
-                <div>掃描結果：</div>
-                <div class="ml-4">
-                    <div>整體緊繃度：${record.scanData.overallTension}%</div>
-                    <div>脊椎狀態：${record.scanData.spineAlignment}</div>
-                    <div>肌肉僵硬度：${record.scanData.muscleStiffness}%</div>
-                    <div>主要緊繃點位：</div>
-                    ${record.scanData.tensionPoints.map(point => 
-                        `<div class="ml-2">- ${point.position}：${point.tension}%</div>`
-                    ).join('')}
-                </div>
-                <div>按摩效果：</div>
-                <div class="ml-4">
-                    ${record.improvedTensionData.map((data, index) => {
-                        const initial = record.initialTensionData[index];
-                        const improvement = ((initial.value - data.value) / initial.value * 100).toFixed(1);
-                        return `<div class="ml-2">- ${data.area}：改善 ${improvement}%</div>`;
-                    }).join('')}
-                </div>
-                <div>模式: ${record.mode}</div>
-                <div>強度: ${record.force}</div>
-                <div>速度: ${record.speed}</div>
-                <div>時長: ${record.duration}秒</div>
-            </div>
-        `).join('');
     }
 }
 
@@ -771,7 +894,4 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', () => {
         spine.setupCanvas();
     });
-
-    // 載入歷史記錄
-    massage.updateHistoryUI();
 }); 
