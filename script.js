@@ -39,16 +39,28 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         events: function(fetchInfo, successCallback, failureCallback) {
             const history = JSON.parse(localStorage.getItem('massageHistory') || '[]');
-            const events = history.map(record => ({
-                title: `${new Date(record.timestamp).toLocaleTimeString('zh-tw', {hour: '2-digit', minute:'2-digit'})} ${record.mode}按摩`,
-                start: record.timestamp,
-                end: record.timestamp,
-                extendedProps: record,
-                allDay: false,
-                display: 'block'
-            }));
+            const events = history.map(record => {
+                const startDate = new Date(record.timestamp);
+                // 設置結束時間為同一天的23:59:59
+                const endDate = new Date(startDate);
+                endDate.setHours(23, 59, 59, 999);
+                
+                return {
+                    title: `${startDate.toLocaleTimeString('zh-tw', {hour: '2-digit', minute:'2-digit'})} ${record.mode}按摩`,
+                    start: startDate,
+                    end: startDate, // 使用相同的時間作為結束時間
+                    extendedProps: record,
+                    allDay: false,
+                    display: 'block',
+                    constraint: 'businessHours', // 限制在當天
+                    duration: { minutes: 0 } // 設置持續時間為0分鐘
+                };
+            });
             successCallback(events);
         },
+        slotMinTime: '00:00:00',
+        slotMaxTime: '24:00:00',
+        nextDayThreshold: '24:00:00', // 防止事件跨天
         eventDidMount: function(info) {
             // 自定義事件元素的樣式
             info.el.style.maxWidth = '100%';
